@@ -17,11 +17,8 @@ services:
       - mysql-data:/var/lib/mysql
 
   student-ecom:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: deepikaashok/student-ecom:latest
-    container_name: student-ecom
+  depends_on:
 
     depends_on:
       - mysql
