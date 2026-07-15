@@ -8,17 +8,18 @@ pipeline {
     }
 
     environment {
+
         IMAGE_NAME = "student-ecom"
         DOCKERHUB_REPO = "deepikaashok/student-ecom"
         IMAGE_TAG = "${BUILD_NUMBER}"
+
+        MYSQL_DATABASE = "student_ecom_db"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                cleanWs()
-
                 git branch: 'main',
                     url: 'https://github.com/DeepikaCAshok/e-commerce-web.git'
             }
@@ -45,7 +46,9 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
+
                 withSonarQubeEnv('sonarqube') {
+
                     withCredentials([
                         string(credentialsId: 'sonar',
                                variable: 'SONAR_TOKEN')
@@ -54,7 +57,7 @@ pipeline {
                         sh '''
                         mvn sonar:sonar \
                         -Dsonar.projectKey=student-ecom \
-                        -Dsonar.projectName=student-ecom \
+                        -Dsonar.projectName="student-ecom" \
                         -Dsonar.token=$SONAR_TOKEN
                         '''
                     }
@@ -72,7 +75,7 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh 'mvn package -DskipTests'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
@@ -95,75 +98,84 @@ pipeline {
         }
 
         stage('Push Docker Image') {
+
+    steps {
+
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'dockerhub-creds',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )
+        ]) {
+
+            sh '''
+            echo "$DOCKER_PASS" | docker login \
+            -u "$DOCKER_USER" \
+            --password-stdin
+
+            docker push $DOCKERHUB_REPO:$IMAGE_TAG
+            docker push $DOCKERHUB_REPO:latest
+
+            docker logout
+            '''
+        }
+    }
+}
+        stage('Deploy using Docker Compose') {
+
             steps {
 
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
+                        credentialsId: 'mysql-creds',
+                        usernameVariable: 'MYSQL_USER',
+                        passwordVariable: 'MYSQL_PASSWORD'
                     )
                 ]) {
 
                     sh '''
-                    echo "$DOCKER_PASS" | docker login \
-                    -u "$DOCKER_USER" \
-                    --password-stdin
+export MYSQL_DATABASE=employee_db
+export MYSQL_USER=$MYSQL_USER
+export MYSQL_PASSWORD=$MYSQL_PASSWORD
+export MYSQL_ROOT_PASSWORD=$MYSQL_PASSWORD
 
-                    docker push $DOCKERHUB_REPO:$IMAGE_TAG
-                    docker push $DOCKERHUB_REPO:latest
+docker-compose down --remove-orphans || true
 
-                    docker logout
-                    '''
+docker-compose pull
+
+docker-compose up -d --force-recreate
+'''
                 }
             }
         }
 
-      stage('Deploy using Docker Compose') {
-    steps {
-
-        dir('/root/e-commerce/e-commerce-web') {
-
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'mysql-creds',
-                    usernameVariable: 'MYSQL_USER',
-                    passwordVariable: 'MYSQL_PASSWORD'
-                )
-            ]) {
-
-                sh '''
-                export MYSQL_DATABASE=student_ecom_db
-                export MYSQL_USER=$MYSQL_USER
-                export MYSQL_PASSWORD=$MYSQL_PASSWORD
-                export MYSQL_ROOT_PASSWORD=$MYSQL_PASSWORD
-
-                docker-compose pull student-ecom
-
-                docker-compose up -d --no-deps --force-recreate student-ecom
-                '''
-            }
-        }
-    }
-}
         stage('Health Check') {
+
             steps {
 
                 sh '''
+
                 echo "Waiting for application..."
+
                 sleep 30
 
                 curl --fail http://localhost:8087/
+
                 '''
             }
         }
 
         stage('Docker Cleanup') {
+
             steps {
 
                 sh '''
+
                 docker image prune -f
+
                 docker system df
+
                 '''
             }
         }
@@ -178,6 +190,7 @@ pipeline {
             echo "===================================="
 
             sh 'docker ps'
+
         }
 
         failure {
@@ -187,10 +200,13 @@ pipeline {
             echo "===================================="
 
             sh 'docker ps -a'
+
         }
 
         always {
+
             cleanWs()
+
         }
     }
 }
