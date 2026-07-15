@@ -20,7 +20,7 @@ pipeline {
                 cleanWs()
 
                 git branch: 'main',
-                    url: 'https://github.com/DeepikaCashok/e-ecommerce-web.git'
+                    url: 'https://github.com/DeepikaCAshok/e-commerce-web.git'
             }
         }
 
