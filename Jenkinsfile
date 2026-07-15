@@ -119,33 +119,33 @@ pipeline {
             }
         }
 
-        stage('Deploy using Docker Compose') {
-            steps {
+      stage('Deploy using Docker Compose') {
+    steps {
 
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'mysql-creds',
-                        usernameVariable: 'MYSQL_USER',
-                        passwordVariable: 'MYSQL_PASSWORD'
-                    )
-                ]) {
+        dir('/root/e-commerce/e-commerce-web') {
 
-                    sh '''
-                    export MYSQL_DATABASE=student_ecom_db
-                    export MYSQL_USER=$MYSQL_USER
-                    export MYSQL_PASSWORD=$MYSQL_PASSWORD
-                    export MYSQL_ROOT_PASSWORD=$MYSQL_PASSWORD
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'mysql-creds',
+                    usernameVariable: 'MYSQL_USER',
+                    passwordVariable: 'MYSQL_PASSWORD'
+                )
+            ]) {
 
-                    docker-compose down --remove-orphans || true
+                sh '''
+                export MYSQL_DATABASE=student_ecom_db
+                export MYSQL_USER=$MYSQL_USER
+                export MYSQL_PASSWORD=$MYSQL_PASSWORD
+                export MYSQL_ROOT_PASSWORD=$MYSQL_PASSWORD
 
-                    docker-compose pull
+                docker-compose pull student-ecom
 
-                    docker-compose up -d --force-recreate
-                    '''
-                }
+                docker-compose up -d --no-deps --force-recreate student-ecom
+                '''
             }
         }
-
+    }
+}
         stage('Health Check') {
             steps {
 
